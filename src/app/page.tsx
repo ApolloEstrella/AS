@@ -16,6 +16,7 @@ import {
   Menu,
   Package,
   Plus,
+  Printer,
   ReceiptText,
   Search,
   Settings,
@@ -27,8 +28,18 @@ import {
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import {
+  BankReconciliationReport,
+  BudgetVsActualReport,
+  CashFlowReport,
+  InventoryValuationReport,
+  JournalEntriesReport,
+  PayablesAgingReport,
+  ReceivablesAgingReport,
+  SalesTaxReport,
+} from "./accounting-reports";
 
-type Area = "overview" | "invoices" | "invoice-payments" | "expenses" | "inventory" | "accounts" | "contacts" | "journal-entries" | "journal-lines" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger";
+type Area = "overview" | "invoices" | "invoice-payments" | "expenses" | "inventory" | "accounts" | "contacts" | "journal-entries" | "journal-lines" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger" | "statement-of-account" | "cash-flow" | "receivables-aging" | "payables-aging" | "sales-tax" | "journal-report" | "inventory-valuation" | "bank-reconciliation" | "budget-vs-actual";
 type RecordRow = Record<string, string | number | boolean | null>;
 
 function isInvoiceFormArea(area: Area): boolean {
@@ -153,7 +164,16 @@ const reportNavigation: { id: Area; label: string; icon: typeof LayoutDashboard 
   { id: "balance-sheet", label: "Balance sheet", icon: BookOpen },
   { id: "income-statement", label: "Income statement", icon: ChartNoAxesCombined },
   { id: "customer-ledger", label: "Customer subsidiary ledger", icon: BookOpen },
+  { id: "statement-of-account", label: "Statement of account", icon: ReceiptText },
   { id: "vendor-ledger", label: "Vendor subsidiary ledger", icon: BookOpen },
+  { id: "cash-flow", label: "Cash flow statement", icon: ChartNoAxesCombined },
+  { id: "receivables-aging", label: "A/R aging", icon: ReceiptText },
+  { id: "payables-aging", label: "A/P aging", icon: ReceiptText },
+  { id: "sales-tax", label: "Sales tax report", icon: ChartNoAxesCombined },
+  { id: "bank-reconciliation", label: "Bank reconciliation", icon: BookOpen },
+  { id: "journal-report", label: "Journal entries report", icon: BookOpen },
+  { id: "inventory-valuation", label: "Inventory valuation", icon: Package },
+  { id: "budget-vs-actual", label: "Budget vs. actual", icon: ChartNoAxesCombined },
 ];
 
 const forms: Partial<Record<Area, Field[]>> = {
@@ -189,15 +209,18 @@ const forms: Partial<Record<Area, Field[]>> = {
     { name: "description", label: "Description", required: true, maxLength: 500 },
     { name: "amount", label: "Amount", type: "number", required: true, min: 0.01, max: 999999999999.99, decimalPlaces: 2 },
     { name: "expense_date", label: "Expense date", type: "date", required: true },
+    { name: "due_date", label: "Due date", type: "date" },
     { name: "account_id", label: "Expense account", type: "expense-account", required: true },
     { name: "contact_id", label: "Payee", type: "contact" },
     { name: "status", label: "Status", type: "select", options: ["unpaid", "paid", "void"], defaultValue: "unpaid" },
+    { name: "payment_date", label: "Payment date", type: "date" },
     { name: "payment_account_id", label: "Payment account", type: "cash-account" },
   ],
   accounts: [
     { name: "code", label: "Account code", required: true, maxLength: 20 },
     { name: "name", label: "Account name", required: true, maxLength: 120 },
     { name: "type", label: "Type", type: "select", options: ["asset", "liability", "equity", "revenue", "expense"], required: true },
+    { name: "cash_flow_category", label: "Cash flow category", type: "select", options: ["operating", "investing", "financing"], required: true, defaultValue: "operating" },
     { name: "description", label: "Description", maxLength: 500 },
   ],
   contacts: [
@@ -362,9 +385,29 @@ const titles: Record<Area, string> = {
   "income-statement": "Income statement",
   "customer-ledger": "Customer subsidiary ledger",
   "vendor-ledger": "Vendor subsidiary ledger",
+  "statement-of-account": "Statement of account",
+  "cash-flow": "Cash flow statement",
+  "receivables-aging": "Accounts receivable aging",
+  "payables-aging": "Accounts payable aging",
+  "sales-tax": "Sales tax report",
+  "journal-report": "Journal entries report",
+  "inventory-valuation": "Inventory valuation",
+  "bank-reconciliation": "Bank reconciliation",
+  "budget-vs-actual": "Budget vs. actual",
 };
 
-const resourceFor: Record<Exclude<Area, "overview" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger">, string> = {
+const reportAreas = [
+  "general-ledger", "trial-balance", "balance-sheet", "income-statement",
+  "customer-ledger", "vendor-ledger", "statement-of-account", "cash-flow",
+  "receivables-aging", "payables-aging", "sales-tax", "journal-report",
+  "inventory-valuation", "bank-reconciliation", "budget-vs-actual",
+] as const satisfies readonly Area[];
+
+function isReportArea(area: Area): area is typeof reportAreas[number] {
+  return reportAreas.some((reportArea) => reportArea === area);
+}
+
+const resourceFor: Record<Exclude<Area, "overview" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger" | "statement-of-account" | "cash-flow" | "receivables-aging" | "payables-aging" | "sales-tax" | "journal-report" | "inventory-valuation" | "bank-reconciliation" | "budget-vs-actual">, string> = {
   invoices: "invoices",
   "invoice-payments": "invoice-payments",
   expenses: "expenses",
@@ -548,6 +591,9 @@ export default function Home() {
       "expenses",
       "journal-entries",
       "journal-lines",
+      "account-budgets",
+      "bank-reconciliations",
+      "bank-reconciliation-items",
     ];
     const loadAll = async (resource: string) => {
       const allRows: RecordRow[] = [];
@@ -569,7 +615,8 @@ export default function Home() {
     };
     const loaded = await Promise.all(
       resourcesToLoad.map(async (resource) => {
-        const data = ["accounts", "contacts", "invoices", "invoice-payments", "expenses", "journal-entries", "journal-lines"].includes(resource)
+        const data = ["accounts", "contacts", "invoices", "invoice-payments", "expenses", "journal-entries", "journal-lines",
+          "account-budgets", "bank-reconciliations", "bank-reconciliation-items"].includes(resource)
           ? await loadAll(resource)
           : await request(resource, "GET");
         return [resource, data] as const;
@@ -651,11 +698,8 @@ export default function Home() {
     }
   }, [organization, refreshData, session]);
 
-  const activeResource = area === "overview" || area === "general-ledger" || area === "trial-balance" ||
-    area === "balance-sheet" || area === "income-statement" || area === "customer-ledger" || area === "vendor-ledger"
-    ? null
-    : resourceFor[area];
-  const reportActive = reportNavigation.some((item) => item.id === area);
+  const activeResource = area === "overview" || isReportArea(area) ? null : resourceFor[area];
+  const reportActive = isReportArea(area);
   const currentRows = useMemo(
     () => activeResource ? rows[activeResource] ?? [] : [],
     [activeResource, rows],
@@ -950,6 +994,9 @@ export default function Home() {
         String(account.code ?? "").startsWith("10"))) {
       nextErrors.payment_account_id = "Choose an active cash or bank payment account.";
     }
+    if (area === "expenses" && values.status === "paid" && !isValidDate(values.payment_date ?? "")) {
+      nextErrors.payment_date = "Choose the date the expense was paid.";
+    }
     if (area === "invoices") {
       if (invoiceLines.length === 0) nextErrors.invoice_lines = "Add at least one invoice line.";
       if (!invoiceTaxExempt) {
@@ -1089,6 +1136,8 @@ export default function Home() {
       body.tax_amount = invoiceTaxCents / 100;
     }
     if (area === "expenses") {
+      body.due_date = values.due_date || null;
+      body.payment_date = values.status === "paid" ? values.payment_date : null;
       body.payment_account_id = values.status === "paid" ? expensePaymentAccountId : null;
     }
     try {
@@ -1356,6 +1405,11 @@ export default function Home() {
             <span className="breadcrumb">Workspace</span><span className="crumb-slash">/</span><strong>{titles[area]}</strong>
           </div>
           <div className="topbar-right">
+            {reportActive && (
+              <button type="button" className="secondary-button report-export-button" onClick={() => window.print()}>
+                <Printer size={15} /> Export to PDF
+              </button>
+            )}
             <span className="user-email">{session.user.email}</span>
             <div className="user-avatar">{String(session.user.email ?? "U").slice(0, 1).toUpperCase()}</div>
           </div>
@@ -1375,6 +1429,15 @@ export default function Home() {
                 <MetricCard title="Expenses" value={formatCurrency(expenseTotal, String(organization?.currency ?? "USD"))} detail={`${expenses.length} recorded expenses`} icon={ArrowDownRight} tone="orange" />
                 <MetricCard title="Customers & vendors" value={String((rows.contacts ?? []).length)} detail="Contacts in your books" icon={UsersRound} tone="purple" />
               </section>
+              <InvoiceAgingCharts
+                invoices={invoices}
+                invoicePayments={invoicePayments}
+                currency={String(organization?.currency ?? "USD")}
+              />
+              <MonthlyExpenseCharts
+                expenses={expenses}
+                currency={String(organization?.currency ?? "USD")}
+              />
               <section className="dashboard-grid">
                 <div className="panel recent-panel">
                   <div className="panel-heading"><div><h2>Recent invoices</h2><p>Your latest billing activity</p></div><button className="text-button" onClick={() => setArea("invoices")}>View all <ArrowUpRight size={14} /></button></div>
@@ -1422,6 +1485,70 @@ export default function Home() {
               journalEntries={rows["journal-entries"] ?? []}
               journalLines={rows["journal-lines"] ?? []}
               currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "statement-of-account" ? (
+            <SubsidiaryLedgerReport
+              kind="customer"
+              statement
+              contacts={rows.contacts ?? []}
+              invoices={rows.invoices ?? []}
+              invoicePayments={rows["invoice-payments"] ?? []}
+              expenses={rows.expenses ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "cash-flow" ? (
+            <CashFlowReport
+              accounts={rows.accounts ?? []}
+              journalEntries={rows["journal-entries"] ?? []}
+              journalLines={rows["journal-lines"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "receivables-aging" ? (
+            <ReceivablesAgingReport
+              contacts={rows.contacts ?? []}
+              invoices={rows.invoices ?? []}
+              invoicePayments={rows["invoice-payments"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "payables-aging" ? (
+            <PayablesAgingReport
+              contacts={rows.contacts ?? []}
+              expenses={rows.expenses ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "sales-tax" ? (
+            <SalesTaxReport invoices={rows.invoices ?? []} currency={String(organization?.currency ?? "USD")} />
+          ) : area === "journal-report" ? (
+            <JournalEntriesReport
+              accounts={rows.accounts ?? []}
+              journalEntries={rows["journal-entries"] ?? []}
+              journalLines={rows["journal-lines"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "inventory-valuation" ? (
+            <InventoryValuationReport inventory={rows.inventory ?? []} currency={String(organization?.currency ?? "USD")} />
+          ) : area === "bank-reconciliation" ? (
+            <BankReconciliationReport
+              accounts={rows.accounts ?? []}
+              journalEntries={rows["journal-entries"] ?? []}
+              journalLines={rows["journal-lines"] ?? []}
+              reconciliations={rows["bank-reconciliations"] ?? []}
+              reconciliationItems={rows["bank-reconciliation-items"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+              organizationId={String(organization?.id ?? "")}
+              request={request}
+              refreshData={refreshData}
+            />
+          ) : area === "budget-vs-actual" ? (
+            <BudgetVsActualReport
+              budgets={rows["account-budgets"] ?? []}
+              accounts={rows.accounts ?? []}
+              journalEntries={rows["journal-entries"] ?? []}
+              journalLines={rows["journal-lines"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+              organizationId={String(organization?.id ?? "")}
+              request={request}
+              refreshData={refreshData}
             />
           ) : area === "customer-ledger" ? (
             <SubsidiaryLedgerReport
@@ -1500,6 +1627,7 @@ export default function Home() {
               <form noValidate onSubmit={submitRecord}>
                 <div className="form-grid">{fieldConfig.map((field) => {
                   if (area === "expenses" && field.name === "payment_account_id" && expenseStatus !== "paid") return null;
+                  if (area === "expenses" && field.name === "payment_date" && expenseStatus !== "paid") return null;
                   if (area === "invoices" && invoiceAlreadyPaid && !editing && field.name === "status") return null;
                   const value = editing?.[field.name];
                   const defaultValue = value == null && field.name === "currency"
@@ -1510,7 +1638,7 @@ export default function Home() {
                   const common = {
                     id: fieldId,
                     name: field.name,
-                    required: field.required || (area === "expenses" && field.name === "payment_account_id" && expenseStatus === "paid"),
+                    required: field.required || (area === "expenses" && ["payment_account_id", "payment_date"].includes(field.name) && expenseStatus === "paid"),
                     "aria-invalid": Boolean(fieldError),
                     "aria-describedby": fieldError ? `${fieldId}-error` : undefined,
                     onChange: () => clearRecordError(field.name),
@@ -1854,6 +1982,7 @@ export default function Home() {
               <form noValidate onSubmit={submitRecord}>
                 <div className="form-grid">{fieldConfig.map((field) => {
                   if (area === "expenses" && field.name === "payment_account_id" && expenseStatus !== "paid") return null;
+                  if (area === "expenses" && field.name === "payment_date" && expenseStatus !== "paid") return null;
                   if (area === "invoices" && invoiceAlreadyPaid && !editing && field.name === "status") return null;
                   const value = editing?.[field.name];
                   const defaultValue = value == null && field.name === "currency"
@@ -1864,7 +1993,7 @@ export default function Home() {
                   const common = {
                     id: fieldId,
                     name: field.name,
-                    required: field.required || (area === "expenses" && field.name === "payment_account_id" && expenseStatus === "paid"),
+                    required: field.required || (area === "expenses" && ["payment_account_id", "payment_date"].includes(field.name) && expenseStatus === "paid"),
                     "aria-invalid": Boolean(fieldError),
                     "aria-describedby": fieldError ? `${fieldId}-error` : undefined,
                     onChange: () => clearRecordError(field.name),
@@ -2315,6 +2444,275 @@ export default function Home() {
         </div>
       </main>
     </div>
+  );
+}
+
+type InvoiceAgingBucket = {
+  label: string;
+  amountCents: number;
+  invoiceCount: number;
+};
+
+const invoiceAgingLabels = ["Current", "1-30 days", "31-60 days", "61-90 days", "90+ days", "No due date"];
+
+function getInvoiceAgingBuckets(invoices: RecordRow[], payments: RecordRow[]): InvoiceAgingBucket[] {
+  const buckets = invoiceAgingLabels.map((label) => ({ label, amountCents: 0, invoiceCount: 0 }));
+  const paymentsByInvoice = new Map<string, number>();
+  for (const payment of payments) {
+    const amount = Number(payment.amount ?? 0);
+    if (!Number.isFinite(amount)) continue;
+    const key = String(payment.invoice_id);
+    paymentsByInvoice.set(key, (paymentsByInvoice.get(key) ?? 0) + Math.round(amount * 100));
+  }
+
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  for (const invoice of invoices) {
+    if (invoice.status === "void") continue;
+    const invoiceTotal = Number(invoice.total ?? 0);
+    if (!Number.isFinite(invoiceTotal)) continue;
+    const outstandingCents = Math.max(
+      0,
+      Math.round(invoiceTotal * 100) - (paymentsByInvoice.get(String(invoice.id)) ?? 0),
+    );
+    if (outstandingCents === 0) continue;
+
+    const dueDate = String(invoice.due_date ?? "");
+    let bucketIndex = invoiceAgingLabels.length - 1;
+    if (isValidDate(dueDate)) {
+      const dueDateUtc = new Date(`${dueDate}T00:00:00.000Z`).getTime();
+      const daysPastDue = Math.max(0, Math.floor((todayUtc - dueDateUtc) / 86_400_000));
+      bucketIndex = daysPastDue === 0 ? 0
+        : daysPastDue <= 30 ? 1
+          : daysPastDue <= 60 ? 2
+            : daysPastDue <= 90 ? 3
+              : 4;
+    }
+
+    buckets[bucketIndex].amountCents += outstandingCents;
+    buckets[bucketIndex].invoiceCount += 1;
+  }
+  return buckets;
+}
+
+function InvoiceAgingCharts({
+  invoices,
+  invoicePayments,
+  currency,
+}: {
+  invoices: RecordRow[];
+  invoicePayments: RecordRow[];
+  currency: string;
+}) {
+  const buckets = getInvoiceAgingBuckets(invoices, invoicePayments);
+  const chartLeft = 52;
+  const chartWidth = 520;
+  const chartTop = 18;
+  const chartBottom = 166;
+  const chartHeight = chartBottom - chartTop;
+  const maxAmountCents = Math.max(1, ...buckets.map((bucket) => bucket.amountCents));
+  const maxInvoiceCount = Math.max(2, ...buckets.map((bucket) => bucket.invoiceCount));
+  const xForBucket = (index: number) => chartLeft + ((index + 0.5) / buckets.length) * chartWidth;
+  const compactCurrency = (amountCents: number) => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amountCents / 100);
+  const linePoints = buckets.map((bucket, index) => {
+    const y = chartBottom - (bucket.invoiceCount / maxInvoiceCount) * chartHeight;
+    return `${xForBucket(index)},${y}`;
+  }).join(" ");
+
+  return (
+    <section className="panel aging-panel">
+      <div className="panel-heading">
+        <div><h2>Outstanding invoice aging</h2><p>Unpaid balances grouped by days past due</p></div>
+      </div>
+      <div className="aging-charts">
+        <div className="aging-chart">
+          <h3>Outstanding balance</h3>
+          <svg className="aging-svg" viewBox="0 0 600 220" role="img" aria-label="Bar chart of outstanding balance by invoice age">
+            {[0, 0.5, 1].map((fraction) => {
+              const y = chartBottom - fraction * chartHeight;
+              return (
+                <g key={fraction}>
+                  <line x1={chartLeft} x2={chartLeft + chartWidth} y1={y} y2={y} className="aging-gridline" />
+                  <text x={chartLeft - 8} y={y + 3} textAnchor="end" className="aging-axis-label">
+                    {compactCurrency(maxAmountCents * fraction)}
+                  </text>
+                </g>
+              );
+            })}
+            {buckets.map((bucket, index) => {
+              const x = xForBucket(index);
+              const barHeight = (bucket.amountCents / maxAmountCents) * chartHeight;
+              return (
+                <g key={bucket.label}>
+                  <rect
+                    x={x - 23}
+                    y={chartBottom - barHeight}
+                    width="46"
+                    height={barHeight}
+                    rx="5"
+                    className="aging-bar"
+                  />
+                  <text x={x} y="190" textAnchor="middle" className="aging-category-label">{bucket.label}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <div className="aging-chart">
+          <h3>Outstanding invoice count</h3>
+          <svg className="aging-svg" viewBox="0 0 600 220" role="img" aria-label="Line chart of outstanding invoice count by age">
+            {[0, 0.5, 1].map((fraction) => {
+              const y = chartBottom - fraction * chartHeight;
+              return (
+                <g key={fraction}>
+                  <line x1={chartLeft} x2={chartLeft + chartWidth} y1={y} y2={y} className="aging-gridline" />
+                  <text x={chartLeft - 8} y={y + 3} textAnchor="end" className="aging-axis-label">
+                    {Math.round(maxInvoiceCount * fraction)}
+                  </text>
+                </g>
+              );
+            })}
+            <polyline points={linePoints} fill="none" className="aging-line" />
+            {buckets.map((bucket, index) => {
+              const y = chartBottom - (bucket.invoiceCount / maxInvoiceCount) * chartHeight;
+              const x = xForBucket(index);
+              return (
+                <g key={bucket.label}>
+                  <circle cx={x} cy={y} r="4" className="aging-point" />
+                  <text x={x} y="190" textAnchor="middle" className="aging-category-label">{bucket.label}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type MonthlyExpenseTotal = {
+  key: string;
+  label: string;
+  amountCents: number;
+};
+
+function getMonthlyExpenseTotals(expenses: RecordRow[]): MonthlyExpenseTotal[] {
+  const today = new Date();
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(Date.UTC(today.getFullYear(), today.getMonth() - 5 + index, 1));
+    return {
+      key: date.toISOString().slice(0, 7),
+      label: date.toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }),
+      amountCents: 0,
+    };
+  });
+  const monthIndexes = new Map(months.map((month, index) => [month.key, index]));
+
+  for (const expense of expenses) {
+    if (expense.status === "void") continue;
+    const expenseDate = String(expense.expense_date ?? "");
+    if (!isValidDate(expenseDate)) continue;
+    const monthIndex = monthIndexes.get(expenseDate.slice(0, 7));
+    const amount = Number(expense.amount ?? 0);
+    if (monthIndex === undefined || !Number.isFinite(amount)) continue;
+    months[monthIndex].amountCents += Math.round(amount * 100);
+  }
+  return months;
+}
+
+function MonthlyExpenseCharts({ expenses, currency }: { expenses: RecordRow[]; currency: string }) {
+  const months = getMonthlyExpenseTotals(expenses);
+  const chartLeft = 52;
+  const chartWidth = 520;
+  const chartTop = 18;
+  const chartBottom = 166;
+  const chartHeight = chartBottom - chartTop;
+  const maxAmountCents = Math.max(100, ...months.map((month) => month.amountCents));
+  const xForMonth = (index: number) => chartLeft + ((index + 0.5) / months.length) * chartWidth;
+  const compactCurrency = (amountCents: number) => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amountCents / 100);
+  const linePoints = months.map((month, index) => {
+    const y = chartBottom - (month.amountCents / maxAmountCents) * chartHeight;
+    return `${xForMonth(index)},${y}`;
+  }).join(" ");
+
+  return (
+    <section className="panel aging-panel expense-trend-panel">
+      <div className="panel-heading">
+        <div><h2>Monthly expenses</h2><p>Current month and previous 5 months</p></div>
+      </div>
+      <div className="aging-charts">
+        <div className="aging-chart">
+          <h3>Expenses by month</h3>
+          <svg className="aging-svg" viewBox="0 0 600 220" role="img" aria-label="Bar chart of expenses for the last six months">
+            {[0, 0.5, 1].map((fraction) => {
+              const y = chartBottom - fraction * chartHeight;
+              return (
+                <g key={fraction}>
+                  <line x1={chartLeft} x2={chartLeft + chartWidth} y1={y} y2={y} className="aging-gridline" />
+                  <text x={chartLeft - 8} y={y + 3} textAnchor="end" className="aging-axis-label">
+                    {compactCurrency(maxAmountCents * fraction)}
+                  </text>
+                </g>
+              );
+            })}
+            {months.map((month, index) => {
+              const x = xForMonth(index);
+              const barHeight = (month.amountCents / maxAmountCents) * chartHeight;
+              return (
+                <g key={month.key}>
+                  <rect
+                    x={x - 23}
+                    y={chartBottom - barHeight}
+                    width="46"
+                    height={barHeight}
+                    rx="5"
+                    className="expense-bar"
+                  />
+                  <text x={x} y="190" textAnchor="middle" className="aging-category-label">{month.label}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        <div className="aging-chart">
+          <h3>Expense trend</h3>
+          <svg className="aging-svg" viewBox="0 0 600 220" role="img" aria-label="Line chart of expenses for the last six months">
+            {[0, 0.5, 1].map((fraction) => {
+              const y = chartBottom - fraction * chartHeight;
+              return (
+                <g key={fraction}>
+                  <line x1={chartLeft} x2={chartLeft + chartWidth} y1={y} y2={y} className="aging-gridline" />
+                  <text x={chartLeft - 8} y={y + 3} textAnchor="end" className="aging-axis-label">
+                    {compactCurrency(maxAmountCents * fraction)}
+                  </text>
+                </g>
+              );
+            })}
+            <polyline points={linePoints} fill="none" className="expense-line" />
+            {months.map((month, index) => {
+              const y = chartBottom - (month.amountCents / maxAmountCents) * chartHeight;
+              const x = xForMonth(index);
+              return (
+                <g key={month.key}>
+                  <circle cx={x} cy={y} r="4" className="expense-point" />
+                  <text x={x} y="190" textAnchor="middle" className="aging-category-label">{month.label}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -2980,6 +3378,7 @@ type VendorLedgerGroup = {
 
 function SubsidiaryLedgerReport({
   kind,
+  statement = false,
   contacts,
   invoices,
   invoicePayments,
@@ -2987,6 +3386,7 @@ function SubsidiaryLedgerReport({
   currency,
 }: {
   kind: "customer" | "vendor";
+  statement?: boolean;
   contacts: RecordRow[];
   invoices: RecordRow[];
   invoicePayments: RecordRow[];
@@ -3146,10 +3546,12 @@ function SubsidiaryLedgerReport({
     <>
       <div className="page-heading list-heading">
         <div>
-          <p className="eyebrow">SUBSIDIARY LEDGERS</p>
-          <h1>{kind === "customer" ? "Customer Subsidiary Ledger" : "Vendor Subsidiary Ledger"}</h1>
+          <p className="eyebrow">{statement ? "CUSTOMER STATEMENT" : "SUBSIDIARY LEDGERS"}</p>
+          <h1>{statement ? "Statement of account" : kind === "customer" ? "Customer Subsidiary Ledger" : "Vendor Subsidiary Ledger"}</h1>
           <p className="muted">
-            {kind === "customer"
+            {statement
+              ? "View a customer's invoices, payments, opening balance, and running balance for a selected period."
+              : kind === "customer"
               ? "Invoice charges and recorded payments by customer, with running receivable balances."
               : "Vendor expenses by date and current paid status. Unassigned expenses are grouped separately; vendor payments are not recorded separately."}
           </p>

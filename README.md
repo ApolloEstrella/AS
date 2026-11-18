@@ -14,7 +14,7 @@ A Next.js and Tailwind CSS accounting MVP with Supabase Auth, a relational Postg
 ## Run locally
 
 1. Create a Supabase project.
-2. In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). For an existing installation, run [`supabase/migrate_journal_lines_to_amount.sql`](supabase/migrate_journal_lines_to_amount.sql) if it still has debit/credit columns, then run [`supabase/add_inventory_table.sql`](supabase/add_inventory_table.sql).
+2. In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). For an existing installation, run [`supabase/migrate_journal_lines_to_amount.sql`](supabase/migrate_journal_lines_to_amount.sql) if it still has debit/credit columns, then run [`supabase/add_inventory_table.sql`](supabase/add_inventory_table.sql) and [`supabase/add_accounting_reports.sql`](supabase/add_accounting_reports.sql).
 3. Copy `.env.example` to `.env.local` and set your project URL and anon/publishable key.
 4. In Supabase Auth settings, configure the site URL and redirect URLs for your local and deployed app. Email confirmation may be enabled or disabled to suit your project.
 5. Install and start the app:

@@ -7,7 +7,7 @@ export const resources = {
   },
   accounts: {
     table: "accounts",
-    fields: ["code", "name", "type", "description", "is_active"],
+    fields: ["code", "name", "type", "description", "is_active", "cash_flow_category"],
   },
   inventory: {
     table: "inventory",
@@ -50,9 +50,23 @@ export const resources = {
       "description",
       "amount",
       "expense_date",
+      "due_date",
+      "payment_date",
       "status",
       "receipt_url",
     ],
+  },
+  "account-budgets": {
+    table: "account_budgets",
+    fields: ["account_id", "budget_month", "amount", "notes"],
+  },
+  "bank-reconciliations": {
+    table: "bank_reconciliations",
+    fields: ["account_id", "statement_date", "beginning_balance", "ending_balance", "status"],
+  },
+  "bank-reconciliation-items": {
+    table: "bank_reconciliation_items",
+    fields: ["reconciliation_id", "journal_line_id", "is_cleared"],
   },
   "journal-entries": {
     table: "journal_entries",

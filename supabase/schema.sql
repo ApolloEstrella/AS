@@ -220,12 +220,8 @@ begin
     (new.id, '1010', 'Checking account', 'asset', 'Operating bank checking account.'),
     (new.id, '1020', 'Savings account', 'asset', 'Business savings and reserve accounts.'),
     (new.id, '1030', 'Petty cash', 'asset', 'Small cash fund for minor purchases.'),
-    (new.id, '1100', 'Accounts receivable', 'asset', 'Amounts customers owe for invoiced work or sales.'),
+    (new.id, '1100', 'Accounts receivable', 'asset', 'Amounts customers owe for services billed.'),
     (new.id, '1110', 'Allowance for doubtful accounts', 'asset', 'Contra-asset allowance for estimated uncollectible receivables.'),
-    (new.id, '1200', 'Inventory - merchandise', 'asset', 'Finished goods held for resale.'),
-    (new.id, '1210', 'Inventory - raw materials', 'asset', 'Materials held for production.'),
-    (new.id, '1220', 'Inventory - work in process', 'asset', 'Partially completed goods and production costs.'),
-    (new.id, '1230', 'Inventory - finished goods', 'asset', 'Completed goods held for sale.'),
     (new.id, '1300', 'Prepaid expenses', 'asset', 'Operating costs paid before they are incurred.'),
     (new.id, '1310', 'Prepaid insurance', 'asset', 'Insurance premiums paid for future coverage periods.'),
     (new.id, '1400', 'Employee advances', 'asset', 'Recoverable advances paid to employees.'),
@@ -251,22 +247,18 @@ begin
     (new.id, '3020', 'Owner draws', 'equity', 'Withdrawals of business equity by owners.'),
     (new.id, '3100', 'Retained earnings', 'equity', 'Accumulated earnings retained in the business.'),
     (new.id, '3200', 'Opening balance equity', 'equity', 'Temporary account for initial account balances.'),
-    (new.id, '4000', 'Sales revenue', 'revenue', 'General operating revenue not assigned to a specialized revenue account.'),
-    (new.id, '4010', 'Product sales', 'revenue', 'Revenue from sales of inventory and products.'),
-    (new.id, '4020', 'Service revenue', 'revenue', 'Revenue from services performed.'),
+    (new.id, '4000', 'General service revenue', 'revenue', 'General revenue from services performed.'),
+    (new.id, '4010', 'Service revenue', 'revenue', 'Primary revenue account for services billed.'),
+    (new.id, '4020', 'Consulting revenue', 'revenue', 'Revenue from consulting and professional services.'),
     (new.id, '4030', 'Contract and recurring service revenue', 'revenue', 'Revenue from retainers, subscriptions, and service contracts.'),
-    (new.id, '4040', 'Shipping and handling revenue', 'revenue', 'Amounts charged to customers for shipping and handling.'),
-    (new.id, '4090', 'Sales returns and allowances', 'revenue', 'Contra-revenue for refunds, returns, and sales allowances.'),
-    (new.id, '4100', 'Sales discounts', 'revenue', 'Contra-revenue for discounts granted to customers.'),
+    (new.id, '4090', 'Service refunds and allowances', 'revenue', 'Contra-revenue for refunds and service allowances.'),
+    (new.id, '4100', 'Service discounts', 'revenue', 'Contra-revenue for discounts granted to customers.'),
     (new.id, '4200', 'Other operating income', 'revenue', 'Other income from normal business operations.'),
     (new.id, '4300', 'Interest income', 'revenue', 'Interest earned on cash and investments.'),
     (new.id, '5000', 'Operating expenses', 'expense', 'General operating expenses not assigned to a specialized account.'),
-    (new.id, '5100', 'Cost of goods sold', 'expense', 'Cost assigned to inventory sold to customers.'),
     (new.id, '5110', 'Cost of services', 'expense', 'Direct costs of delivering services to customers.'),
-    (new.id, '5120', 'Direct labor', 'expense', 'Labor directly attributable to products or customer services.'),
+    (new.id, '5120', 'Direct labor', 'expense', 'Labor directly attributable to customer services.'),
     (new.id, '5130', 'Subcontractor costs', 'expense', 'Third-party labor and services used to fulfill customer work.'),
-    (new.id, '5140', 'Freight-in and landed costs', 'expense', 'Inbound freight and other costs of acquiring inventory.'),
-    (new.id, '5150', 'Inventory shrinkage and adjustments', 'expense', 'Inventory losses, spoilage, and count adjustments.'),
     (new.id, '6000', 'Wages and salaries', 'expense', 'Employee compensation not classified as direct labor.'),
     (new.id, '6010', 'Employer payroll taxes', 'expense', 'Employer-paid payroll taxes and contributions.'),
     (new.id, '6020', 'Advertising and marketing', 'expense', 'Advertising, promotion, and marketing costs.'),
@@ -479,7 +471,7 @@ begin
         where organization_id = p_organization_id
           and code = '4010' and type = 'revenue' and is_active;
       if not found then
-        raise exception 'An active Product Sales account (4010) is required to post invoices.';
+        raise exception 'An active Service Revenue account (4010) is required to post invoices.';
       end if;
       if source_tax_amount > 0 then
         select id into tax_credit_account_id

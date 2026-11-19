@@ -237,7 +237,7 @@ begin
         where organization_id = p_organization_id
           and code = '4010' and type = 'revenue' and is_active;
       if not found then
-        raise exception 'An active Product Sales account (4010) is required to post invoices.';
+        raise exception 'An active Service Revenue account (4010) is required to post invoices.';
       end if;
       if source_tax_amount > 0 then
         select id into tax_credit_account_id

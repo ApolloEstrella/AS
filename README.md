@@ -14,7 +14,7 @@ A Next.js and Tailwind CSS accounting MVP with Supabase Auth, a relational Postg
 ## Run locally
 
 1. Create a Supabase project.
-2. In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). For an existing installation, run [`supabase/migrate_journal_lines_to_amount.sql`](supabase/migrate_journal_lines_to_amount.sql) if it still has debit/credit columns, then run [`supabase/add_inventory_table.sql`](supabase/add_inventory_table.sql) and [`supabase/add_accounting_reports.sql`](supabase/add_accounting_reports.sql).
+2. In the Supabase SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). For an existing installation, run [`supabase/migrate_journal_lines_to_amount.sql`](supabase/migrate_journal_lines_to_amount.sql) if it still has debit/credit columns, then run [`supabase/add_inventory_table.sql`](supabase/add_inventory_table.sql), [`supabase/add_accounting_reports.sql`](supabase/add_accounting_reports.sql), and [`supabase/seed_service_chart_of_accounts.sql`](supabase/seed_service_chart_of_accounts.sql).
 3. Copy `.env.example` to `.env.local` and set your project URL and anon/publishable key.
 4. In Supabase Auth settings, configure the site URL and redirect URLs for your local and deployed app. Email confirmation may be enabled or disabled to suit your project.
 5. Install and start the app:
@@ -44,7 +44,7 @@ All endpoints require `Authorization: Bearer <supabase-access-token>`. Collectio
 
 Use `GET` and `POST` on a collection; use `GET`, `PATCH`, and `DELETE` on `/api/{resource}/{id}`. Collection `GET` accepts `?organizationId=<uuid>` except for organizations, which are scoped to the signed-in owner. Create requests for tenant-owned data must include `organization_id`; the API only accepts resource-specific writable fields and the database verifies ownership and relationships.
 
-Inventory items are managed through `/api/inventory`. `invoice_items.inventory_id` is optional, preserving free-form service lines, and is cleared if its inventory item is deleted.
+The inventory table also serves as the IT service catalog. Service items include SKUs, delivery units, standard costs, and prices; `invoice_items.inventory_id` is optional, preserving free-form service lines, and is cleared if its catalog item is deleted.
 
 Example:
 

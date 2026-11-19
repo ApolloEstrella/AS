@@ -1,0 +1,93 @@
+begin;
+
+insert into public.accounts (
+  organization_id,
+  code,
+  name,
+  type,
+  description
+)
+select
+  organization.id,
+  chart.code,
+  chart.name,
+  chart.type,
+  chart.description
+from public.organizations as organization
+cross join (
+  values
+    ('1000', 'Cash', 'asset', 'Cash and cash equivalents.'),
+    ('1010', 'Checking account', 'asset', 'Primary operating bank account.'),
+    ('1020', 'Savings account', 'asset', 'Business savings and reserve accounts.'),
+    ('1030', 'Petty cash', 'asset', 'Small cash fund for minor expenses.'),
+    ('1100', 'Accounts receivable', 'asset', 'Amounts customers owe for services billed.'),
+    ('1110', 'Allowance for doubtful accounts', 'asset', 'Estimated uncollectible customer balances.'),
+    ('1300', 'Prepaid expenses', 'asset', 'Costs paid before the related service period.'),
+    ('1310', 'Prepaid insurance', 'asset', 'Insurance premiums paid for future coverage.'),
+    ('1400', 'Employee advances', 'asset', 'Recoverable advances made to employees.'),
+    ('1500', 'Furniture and fixtures', 'asset', 'Furniture and fixtures used in operations.'),
+    ('1510', 'Equipment and computers', 'asset', 'Office and computer equipment used in operations.'),
+    ('1520', 'Vehicles', 'asset', 'Vehicles owned and used by the business.'),
+    ('1590', 'Accumulated depreciation', 'asset', 'Accumulated depreciation of fixed assets.'),
+    ('1600', 'Leasehold improvements', 'asset', 'Improvements to leased business premises.'),
+    ('1700', 'Security deposits', 'asset', 'Refundable deposits held by landlords or vendors.'),
+    ('2000', 'Accounts payable', 'liability', 'Amounts owed to vendors and suppliers.'),
+    ('2010', 'Credit card payable', 'liability', 'Outstanding business credit card balances.'),
+    ('2100', 'Accrued expenses', 'liability', 'Expenses incurred but not yet paid.'),
+    ('2110', 'Wages payable', 'liability', 'Employee wages earned but not yet paid.'),
+    ('2120', 'Payroll taxes payable', 'liability', 'Payroll taxes withheld or accrued.'),
+    ('2130', 'Sales tax payable', 'liability', 'Sales taxes collected and due to tax authorities.'),
+    ('2200', 'Customer deposits and deferred revenue', 'liability', 'Customer advances for services not yet performed.'),
+    ('2300', 'Current portion of debt', 'liability', 'Loan principal due within the next year.'),
+    ('2400', 'Notes payable', 'liability', 'Long-term business loans and notes.'),
+    ('2500', 'Lease liabilities', 'liability', 'Amounts due under lease agreements.'),
+    ('2600', 'Income taxes payable', 'liability', 'Business income taxes accrued and unpaid.'),
+    ('3000', 'Owner equity', 'equity', 'Owner capital and accumulated business equity.'),
+    ('3010', 'Owner contributions', 'equity', 'Additional capital contributed by owners.'),
+    ('3020', 'Owner draws', 'equity', 'Withdrawals made by owners.'),
+    ('3100', 'Retained earnings', 'equity', 'Accumulated earnings retained in the business.'),
+    ('3200', 'Opening balance equity', 'equity', 'Temporary account used for opening balances.'),
+    ('4000', 'General service revenue', 'revenue', 'General revenue from services performed.'),
+    ('4010', 'Service revenue', 'revenue', 'Primary revenue account for services billed.'),
+    ('4020', 'Consulting revenue', 'revenue', 'Revenue from consulting and professional services.'),
+    ('4030', 'Contract and recurring service revenue', 'revenue', 'Revenue from retainers and recurring service contracts.'),
+    ('4090', 'Service refunds and allowances', 'revenue', 'Contra-revenue for refunds and service allowances.'),
+    ('4100', 'Service discounts', 'revenue', 'Contra-revenue for discounts granted to customers.'),
+    ('4200', 'Other operating income', 'revenue', 'Other income from normal service operations.'),
+    ('4300', 'Interest income', 'revenue', 'Interest earned on cash and investments.'),
+    ('5000', 'Operating expenses', 'expense', 'General operating expenses.'),
+    ('5110', 'Cost of services', 'expense', 'Direct costs incurred in delivering services.'),
+    ('5120', 'Direct labor', 'expense', 'Labor directly attributable to customer services.'),
+    ('5130', 'Subcontractor costs', 'expense', 'Third-party labor used to fulfill customer work.'),
+    ('6000', 'Wages and salaries', 'expense', 'Employee compensation not classified as direct labor.'),
+    ('6010', 'Employer payroll taxes', 'expense', 'Employer-paid payroll taxes and contributions.'),
+    ('6020', 'Advertising and marketing', 'expense', 'Advertising, promotion, and marketing costs.'),
+    ('6030', 'Automobile and delivery', 'expense', 'Vehicle operations and customer delivery costs.'),
+    ('6040', 'Bank and merchant fees', 'expense', 'Bank charges and payment processing fees.'),
+    ('6050', 'Depreciation expense', 'expense', 'Periodic depreciation of fixed assets.'),
+    ('6060', 'Insurance expense', 'expense', 'Business insurance premiums for the period.'),
+    ('6070', 'Licenses and permits', 'expense', 'Business licenses, permits, and regulatory fees.'),
+    ('6080', 'Meals', 'expense', 'Business meals, subject to applicable tax rules.'),
+    ('6090', 'Office supplies', 'expense', 'Consumable office and administrative supplies.'),
+    ('6100', 'Rent', 'expense', 'Rent for offices and business premises.'),
+    ('6110', 'Repairs and maintenance', 'expense', 'Repairs and routine maintenance.'),
+    ('6120', 'Software and subscriptions', 'expense', 'Software, hosting, and recurring technology services.'),
+    ('6130', 'Telephone and internet', 'expense', 'Telephone, mobile, and internet services.'),
+    ('6140', 'Travel', 'expense', 'Business travel and lodging costs.'),
+    ('6150', 'Utilities', 'expense', 'Electricity, water, gas, and other utilities.'),
+    ('6160', 'Professional services', 'expense', 'Legal, accounting, and other professional fees.'),
+    ('6170', 'Training', 'expense', 'Employee training and professional development.'),
+    ('6180', 'Bad debt expense', 'expense', 'Uncollectible customer balances and write-offs.'),
+    ('6190', 'Small tools and equipment', 'expense', 'Low-cost tools and equipment expensed when purchased.'),
+    ('6200', 'Interest expense', 'expense', 'Interest and financing charges.'),
+    ('6210', 'Income tax expense', 'expense', 'Business income tax expense for the period.'),
+    ('6220', 'Miscellaneous expense', 'expense', 'Infrequent expenses not classified elsewhere.')
+) as chart(code, name, type, description)
+on conflict (organization_id, code) do update
+set
+  name = excluded.name,
+  type = excluded.type,
+  description = excluded.description,
+  is_active = true;
+
+commit;

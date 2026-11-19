@@ -197,7 +197,7 @@ const forms: Partial<Record<Area, Field[]>> = {
     { name: "sku", label: "SKU", required: true, maxLength: 64 },
     { name: "name", label: "Item name", required: true, maxLength: 160 },
     { name: "description", label: "Description", maxLength: 500 },
-    { name: "unit", label: "Unit", type: "select", options: ["each", "set", "pair", "box", "pack"], required: true, defaultValue: "each" },
+    { name: "unit", label: "Unit", type: "select", options: ["each", "hour", "day", "month", "project", "ticket", "set", "pair", "box", "pack"], required: true, defaultValue: "each" },
     { name: "quantity_on_hand", label: "Quantity on hand", type: "number", required: true, min: 0, max: 999999999.999, decimalPlaces: 3, defaultValue: "0" },
     { name: "unit_cost", label: "Unit cost", type: "number", required: true, min: 0, max: 999999999999.99, decimalPlaces: 2, defaultValue: "0" },
     { name: "unit_price", label: "Unit price", type: "number", required: true, min: 0, max: 999999999999.99, decimalPlaces: 2, defaultValue: "0" },
@@ -205,10 +205,10 @@ const forms: Partial<Record<Area, Field[]>> = {
     { name: "is_active", label: "Status", type: "select", options: ["true", "false"], optionLabels: { true: "Active", false: "Inactive" }, required: true, defaultValue: "true" },
   ],
   invoices: [
-    { name: "invoice_number", label: "Invoice number", required: true, maxLength: 50 },
-    { name: "contact_id", label: "Customer", type: "contact", required: true },
-    { name: "issue_date", label: "Issue date", type: "date", required: true },
-    { name: "due_date", label: "Due date", type: "date", required: true },
+    { name: "invoice_number", label: "Invoice / reference no.", required: true, maxLength: 50 },
+    { name: "contact_id", label: "Client", type: "contact", required: true },
+    { name: "issue_date", label: "Invoice date", type: "date", required: true },
+    { name: "due_date", label: "Payment due date", type: "date", required: true },
     { name: "total", label: "Total", type: "number", required: true, min: 0, max: 999999999999.99, decimalPlaces: 2 },
     { name: "currency", label: "Currency", required: true, maxLength: 3 },
     { name: "status", label: "Status", type: "select", options: ["draft", "sent", "paid", "overdue", "void"] },
@@ -1660,7 +1660,7 @@ export default function Home() {
           ) : (
             <>
               <div className="page-heading list-heading">
-                <div><p className="eyebrow">YOUR BOOKS</p><h1>{titles[area]}</h1><p className="muted">{area === "accounts" ? "Organize your financial activity by account." : area === "journal-lines" ? "Individual amount-coded debit and credit lines in your ledger." : area === "inventory" ? "Track spare parts, stock levels, and pricing." : `Manage your ${titles[area].toLowerCase()} and keep records up to date.`}</p></div>
+                <div><p className="eyebrow">YOUR BOOKS</p><h1>{titles[area]}</h1><p className="muted">{area === "accounts" ? "Organize your financial activity by account." : area === "journal-lines" ? "Individual amount-coded debit and credit lines in your ledger." : area === "inventory" ? "Manage IT service catalog items, delivery units, costs, and prices." : `Manage your ${titles[area].toLowerCase()} and keep records up to date.`}</p></div>
                 <button className="primary-button" onClick={() => openAddRecord()}><Plus size={17} /> Add {area === "inventory" ? "item" : area === "journal-entries" ? "entry" : area === "journal-lines" ? "line" : area === "accounts" ? "account" : area === "contacts" ? "contact" : area === "invoice-payments" ? "payment" : area.slice(0, -1)}</button>
               </div>
               <div className="panel table-panel">
@@ -1715,6 +1715,7 @@ export default function Home() {
               {area === "journal-entries" && <p className="muted">Entry details and all debit/credit lines are saved together. Debits must equal credits.</p>}
               <form noValidate onSubmit={submitRecord}>
                 <div className="form-grid">{fieldConfig.map((field) => {
+                  if (area === "invoices" && field.name === "total") return null;
                   if (area === "expenses" && field.name === "payment_account_id" && expenseStatus !== "paid") return null;
                   if (area === "expenses" && field.name === "payment_date" && expenseStatus !== "paid") return null;
                   if (area === "invoices" && invoiceAlreadyPaid && !editing && field.name === "status") return null;
@@ -1911,12 +1912,12 @@ export default function Home() {
                 {area === "invoices" && (
                   <section className="invoice-lines-section">
                     <div className="invoice-lines-heading">
-                      <div><h3>Invoice lines</h3><p>Add products or service charges to this invoice.</p></div>
+                      <div><h3>Services</h3><p>Add billable services to this invoice.</p></div>
                       <strong>{formatCurrency(invoiceTotalCents / 100, String(organization?.currency ?? "USD"))}</strong>
                     </div>
                     {invoiceLinesLoading ? <p className="muted">Loading invoice lines…</p> : (
                       <div className="invoice-line-list">
-                        {invoiceLines.length === 0 && <p className="invoice-lines-empty">No lines yet. Add a product or service line.</p>}
+                        {invoiceLines.length === 0 && <p className="invoice-lines-empty">No services yet. Add a service or custom charge.</p>}
                         {invoiceLines.map((line, index) => {
                           const lineError = (field: string) => validationErrors[`invoice-line-${line.key}-${field}`];
                           const activeInventory = (rows.inventory ?? []).filter((item) => item.is_active !== false);
@@ -1934,7 +1935,7 @@ export default function Home() {
                                 </div>
                               </div>
                               <div className="invoice-line-grid">
-                                <label className="invoice-line-inventory">Inventory item
+                                <label className="invoice-line-inventory">Service
                                   <select value={line.inventory_id} aria-invalid={Boolean(lineError("inventory_id"))} onChange={(event) => {
                                     const inventoryId = event.target.value;
                                     const item = activeInventory.find((candidate) => String(candidate.id) === inventoryId);
@@ -1946,7 +1947,7 @@ export default function Home() {
                                       } : {}),
                                     });
                                   }}>
-                                    <option value="">Custom / service</option>
+                                    <option value="">Custom service</option>
                                     {activeInventory.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.sku ?? "")} · {String(item.name ?? "")}</option>)}
                                   </select>
                                   {lineError("inventory_id") && <span className="field-error" role="alert">{lineError("inventory_id")}</span>}
@@ -1955,15 +1956,15 @@ export default function Home() {
                                   <input value={line.description} maxLength={500} aria-invalid={Boolean(lineError("description"))} onChange={(event) => updateInvoiceLine(line.key, { description: event.target.value })} />
                                   {lineError("description") && <span className="field-error" role="alert">{lineError("description")}</span>}
                                 </label>
-                                <label className="invoice-line-quantity">Quantity
+                                <label className="invoice-line-quantity">Qty / hours
                                   <input type="number" min="0.001" max="999999999.999" step="0.001" value={line.quantity} aria-invalid={Boolean(lineError("quantity"))} onChange={(event) => updateInvoiceLine(line.key, { quantity: event.target.value })} />
                                   {lineError("quantity") && <span className="field-error" role="alert">{lineError("quantity")}</span>}
                                 </label>
-                                <label className="invoice-line-price">Unit price
+                                <label className="invoice-line-price">Rate
                                   <input type="number" min="0" max="999999999999.99" step="0.01" value={line.unit_price} aria-invalid={Boolean(lineError("unit_price"))} onChange={(event) => updateInvoiceLine(line.key, { unit_price: event.target.value })} />
                                   {lineError("unit_price") && <span className="field-error" role="alert">{lineError("unit_price")}</span>}
                                 </label>
-                                <label className="invoice-line-account">Revenue account
+                                <label className="invoice-line-account">Income account
                                   <select value={line.account_id} aria-invalid={Boolean(lineError("account_id"))} onChange={(event) => updateInvoiceLine(line.key, { account_id: event.target.value })}>
                                     <option value="">Default</option>
                                     {revenueAccounts.map((account) => <option key={String(account.id)} value={String(account.id)}>{String(account.code ?? "")} · {String(account.name ?? "")}</option>)}
@@ -1985,7 +1986,7 @@ export default function Home() {
                     <button type="button" className="secondary-button add-invoice-line" onClick={() => {
                       setInvoiceLines((current) => [...current, createInvoiceLine()]);
                       setValidationErrors((current) => ({ ...current, invoice_lines: "" }));
-                    }}>Add line</button>
+                    }}>Add service</button>
                   </section>
                 )}
                 {area === "journal-entries" && (
@@ -2070,6 +2071,7 @@ export default function Home() {
               {area === "journal-entries" && <p className="muted">Entry details and all debit/credit lines are saved together. Debits must equal credits.</p>}
               <form noValidate onSubmit={submitRecord}>
                 <div className="form-grid">{fieldConfig.map((field) => {
+                  if (area === "invoices" && field.name === "total") return null;
                   if (area === "expenses" && field.name === "payment_account_id" && expenseStatus !== "paid") return null;
                   if (area === "expenses" && field.name === "payment_date" && expenseStatus !== "paid") return null;
                   if (area === "invoices" && invoiceAlreadyPaid && !editing && field.name === "status") return null;
@@ -2266,12 +2268,12 @@ export default function Home() {
                 {area === "invoices" && (
                   <section className="invoice-lines-section">
                     <div className="invoice-lines-heading">
-                      <div><h3>Invoice lines</h3><p>Add products or service charges to this invoice.</p></div>
+                      <div><h3>Services</h3><p>Add billable services to this invoice.</p></div>
                       <strong>{formatCurrency(invoiceTotalCents / 100, String(organization?.currency ?? "USD"))}</strong>
                     </div>
                     {invoiceLinesLoading ? <p className="muted">Loading invoice lines…</p> : (
                       <div className="invoice-line-list">
-                        {invoiceLines.length === 0 && <p className="invoice-lines-empty">No lines yet. Add a product or service line.</p>}
+                        {invoiceLines.length === 0 && <p className="invoice-lines-empty">No services yet. Add a service or custom charge.</p>}
                         {invoiceLines.map((line, index) => {
                           const lineError = (field: string) => validationErrors[`invoice-line-${line.key}-${field}`];
                           const activeInventory = (rows.inventory ?? []).filter((item) => item.is_active !== false);
@@ -2289,7 +2291,7 @@ export default function Home() {
                                 </div>
                               </div>
                               <div className="invoice-line-grid">
-                                <label className="invoice-line-inventory">Inventory item
+                                <label className="invoice-line-inventory">Service
                                   <select value={line.inventory_id} aria-invalid={Boolean(lineError("inventory_id"))} onChange={(event) => {
                                     const inventoryId = event.target.value;
                                     const item = activeInventory.find((candidate) => String(candidate.id) === inventoryId);
@@ -2301,7 +2303,7 @@ export default function Home() {
                                       } : {}),
                                     });
                                   }}>
-                                    <option value="">Custom / service</option>
+                                    <option value="">Custom service</option>
                                     {activeInventory.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.sku ?? "")} · {String(item.name ?? "")}</option>)}
                                   </select>
                                   {lineError("inventory_id") && <span className="field-error" role="alert">{lineError("inventory_id")}</span>}
@@ -2310,15 +2312,15 @@ export default function Home() {
                                   <input value={line.description} maxLength={500} aria-invalid={Boolean(lineError("description"))} onChange={(event) => updateInvoiceLine(line.key, { description: event.target.value })} />
                                   {lineError("description") && <span className="field-error" role="alert">{lineError("description")}</span>}
                                 </label>
-                                <label className="invoice-line-quantity">Quantity
+                                <label className="invoice-line-quantity">Qty / hours
                                   <input type="number" min="0.001" max="999999999.999" step="0.001" value={line.quantity} aria-invalid={Boolean(lineError("quantity"))} onChange={(event) => updateInvoiceLine(line.key, { quantity: event.target.value })} />
                                   {lineError("quantity") && <span className="field-error" role="alert">{lineError("quantity")}</span>}
                                 </label>
-                                <label className="invoice-line-price">Unit price
+                                <label className="invoice-line-price">Rate
                                   <input type="number" min="0" max="999999999999.99" step="0.01" value={line.unit_price} aria-invalid={Boolean(lineError("unit_price"))} onChange={(event) => updateInvoiceLine(line.key, { unit_price: event.target.value })} />
                                   {lineError("unit_price") && <span className="field-error" role="alert">{lineError("unit_price")}</span>}
                                 </label>
-                                <label className="invoice-line-account">Revenue account
+                                <label className="invoice-line-account">Income account
                                   <select value={line.account_id} aria-invalid={Boolean(lineError("account_id"))} onChange={(event) => updateInvoiceLine(line.key, { account_id: event.target.value })}>
                                     <option value="">Default</option>
                                     {revenueAccounts.map((account) => <option key={String(account.id)} value={String(account.id)}>{String(account.code ?? "")} · {String(account.name ?? "")}</option>)}
@@ -2340,7 +2342,7 @@ export default function Home() {
                     <button type="button" className="secondary-button add-invoice-line" onClick={() => {
                       setInvoiceLines((current) => [...current, createInvoiceLine()]);
                       setValidationErrors((current) => ({ ...current, invoice_lines: "" }));
-                    }}>Add line</button>
+                    }}>Add service</button>
                   </section>
                 )}
                 {area === "journal-entries" && (

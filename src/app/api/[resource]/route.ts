@@ -26,7 +26,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   let query = auth.client.from(resources[resource].table).select("*");
   if (resource === "organizations") {
-    query = query.eq("owner_id", auth.user.id);
+    const { data: memberships, error: membershipError } = await auth.client
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", auth.user.id)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (membershipError) return apiError(membershipError.message, 400);
+    const sharedOrganizationId = memberships?.[0]?.organization_id;
+    query = sharedOrganizationId
+      ? query.eq("id", sharedOrganizationId)
+      : query.eq("owner_id", auth.user.id);
   } else {
     const organizationId = request.nextUrl.searchParams.get("organizationId");
     if (!organizationId) return apiError("organizationId is required.");

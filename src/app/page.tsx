@@ -38,8 +38,17 @@ import {
   ReceivablesAgingReport,
   SalesTaxReport,
 } from "./accounting-reports";
+import {
+  CashForecastReport,
+  EquityChangesReport,
+  ExpenseAnalysisReport,
+  FixedAssetReport,
+  InventoryMovementReport,
+  PayrollTaxReport,
+  SalesAnalysisReport,
+} from "./extended-accounting-reports";
 
-type Area = "overview" | "invoices" | "invoice-payments" | "expenses" | "inventory" | "accounts" | "contacts" | "journal-entries" | "journal-lines" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger" | "statement-of-account" | "cash-flow" | "receivables-aging" | "payables-aging" | "sales-tax" | "journal-report" | "inventory-valuation" | "bank-reconciliation" | "budget-vs-actual";
+type Area = "overview" | "invoices" | "invoice-payments" | "expenses" | "inventory" | "accounts" | "contacts" | "journal-entries" | "journal-lines" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger" | "statement-of-account" | "cash-flow" | "receivables-aging" | "payables-aging" | "sales-tax" | "journal-report" | "inventory-valuation" | "bank-reconciliation" | "budget-vs-actual" | "equity-changes" | "cash-forecast" | "sales-analysis" | "expense-analysis" | "inventory-movements" | "fixed-assets" | "payroll-tax";
 type RecordRow = Record<string, string | number | boolean | null>;
 
 function isInvoiceFormArea(area: Area): boolean {
@@ -174,6 +183,13 @@ const reportNavigation: { id: Area; label: string; icon: typeof LayoutDashboard 
   { id: "journal-report", label: "Journal entries report", icon: BookOpen },
   { id: "inventory-valuation", label: "Inventory valuation", icon: Package },
   { id: "budget-vs-actual", label: "Budget vs. actual", icon: ChartNoAxesCombined },
+  { id: "equity-changes", label: "Changes in equity", icon: BookOpen },
+  { id: "cash-forecast", label: "Cash position & forecast", icon: ChartNoAxesCombined },
+  { id: "sales-analysis", label: "Sales analysis", icon: ChartNoAxesCombined },
+  { id: "expense-analysis", label: "Expense analysis", icon: ChartNoAxesCombined },
+  { id: "inventory-movements", label: "Inventory movement & reorder", icon: Package },
+  { id: "fixed-assets", label: "Fixed asset schedule", icon: BookOpen },
+  { id: "payroll-tax", label: "Payroll & contractor tax", icon: ChartNoAxesCombined },
 ];
 
 const forms: Partial<Record<Area, Field[]>> = {
@@ -185,6 +201,7 @@ const forms: Partial<Record<Area, Field[]>> = {
     { name: "quantity_on_hand", label: "Quantity on hand", type: "number", required: true, min: 0, max: 999999999.999, decimalPlaces: 3, defaultValue: "0" },
     { name: "unit_cost", label: "Unit cost", type: "number", required: true, min: 0, max: 999999999999.99, decimalPlaces: 2, defaultValue: "0" },
     { name: "unit_price", label: "Unit price", type: "number", required: true, min: 0, max: 999999999999.99, decimalPlaces: 2, defaultValue: "0" },
+    { name: "reorder_level", label: "Reorder level", type: "number", required: true, min: 0, max: 999999999.999, decimalPlaces: 3, defaultValue: "0" },
     { name: "is_active", label: "Status", type: "select", options: ["true", "false"], optionLabels: { true: "Active", false: "Inactive" }, required: true, defaultValue: "true" },
   ],
   invoices: [
@@ -394,6 +411,13 @@ const titles: Record<Area, string> = {
   "inventory-valuation": "Inventory valuation",
   "bank-reconciliation": "Bank reconciliation",
   "budget-vs-actual": "Budget vs. actual",
+  "equity-changes": "Statement of changes in equity",
+  "cash-forecast": "Cash position & forecast",
+  "sales-analysis": "Sales analysis",
+  "expense-analysis": "Expense analysis",
+  "inventory-movements": "Inventory movement & reorder",
+  "fixed-assets": "Fixed asset & depreciation schedule",
+  "payroll-tax": "Payroll & contractor tax summary",
 };
 
 const reportAreas = [
@@ -401,13 +425,15 @@ const reportAreas = [
   "customer-ledger", "vendor-ledger", "statement-of-account", "cash-flow",
   "receivables-aging", "payables-aging", "sales-tax", "journal-report",
   "inventory-valuation", "bank-reconciliation", "budget-vs-actual",
+  "equity-changes", "cash-forecast", "sales-analysis", "expense-analysis",
+  "inventory-movements", "fixed-assets", "payroll-tax",
 ] as const satisfies readonly Area[];
 
 function isReportArea(area: Area): area is typeof reportAreas[number] {
   return reportAreas.some((reportArea) => reportArea === area);
 }
 
-const resourceFor: Record<Exclude<Area, "overview" | "general-ledger" | "trial-balance" | "balance-sheet" | "income-statement" | "customer-ledger" | "vendor-ledger" | "statement-of-account" | "cash-flow" | "receivables-aging" | "payables-aging" | "sales-tax" | "journal-report" | "inventory-valuation" | "bank-reconciliation" | "budget-vs-actual">, string> = {
+const resourceFor: Partial<Record<Area, string>> = {
   invoices: "invoices",
   "invoice-payments": "invoice-payments",
   expenses: "expenses",
@@ -432,6 +458,7 @@ const displayNames: Record<string, string> = {
   amount: "Amount",
   sku: "SKU",
   quantity_on_hand: "In stock",
+  reorder_level: "Reorder level",
   unit_cost: "Unit cost",
   unit_price: "Unit price",
   is_active: "Status",
@@ -586,14 +613,18 @@ export default function Home() {
       "accounts",
       "contacts",
       "invoices",
+      "invoice-items",
       "invoice-payments",
       "inventory",
+      "inventory-movements",
       "expenses",
       "journal-entries",
       "journal-lines",
       "account-budgets",
       "bank-reconciliations",
       "bank-reconciliation-items",
+      "fixed-assets",
+      "payroll-payments",
     ];
     const loadAll = async (resource: string) => {
       const allRows: RecordRow[] = [];
@@ -615,8 +646,9 @@ export default function Home() {
     };
     const loaded = await Promise.all(
       resourcesToLoad.map(async (resource) => {
-        const data = ["accounts", "contacts", "invoices", "invoice-payments", "expenses", "journal-entries", "journal-lines",
-          "account-budgets", "bank-reconciliations", "bank-reconciliation-items"].includes(resource)
+        const data = ["accounts", "contacts", "invoices", "invoice-items", "invoice-payments", "inventory", "inventory-movements",
+          "expenses", "journal-entries", "journal-lines", "account-budgets", "bank-reconciliations",
+          "bank-reconciliation-items", "fixed-assets", "payroll-payments"].includes(resource)
           ? await loadAll(resource)
           : await request(resource, "GET");
         return [resource, data] as const;
@@ -1315,7 +1347,7 @@ export default function Home() {
     : area === "expenses"
       ? ["description", "expense_date", "account_id", "amount", "status"]
       : area === "inventory"
-        ? ["sku", "name", "unit", "quantity_on_hand", "unit_cost", "unit_price", "is_active"]
+        ? ["sku", "name", "unit", "quantity_on_hand", "unit_cost", "unit_price", "reorder_level", "is_active"]
       : area === "accounts"
         ? ["code", "name", "type", "description"]
         : area === "contacts"
@@ -1545,6 +1577,63 @@ export default function Home() {
               accounts={rows.accounts ?? []}
               journalEntries={rows["journal-entries"] ?? []}
               journalLines={rows["journal-lines"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+              organizationId={String(organization?.id ?? "")}
+              request={request}
+              refreshData={refreshData}
+            />
+          ) : area === "equity-changes" ? (
+            <EquityChangesReport
+              accounts={rows.accounts ?? []}
+              journalEntries={rows["journal-entries"] ?? []}
+              journalLines={rows["journal-lines"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "cash-forecast" ? (
+            <CashForecastReport
+              accounts={rows.accounts ?? []}
+              journalEntries={rows["journal-entries"] ?? []}
+              journalLines={rows["journal-lines"] ?? []}
+              invoices={rows.invoices ?? []}
+              invoicePayments={rows["invoice-payments"] ?? []}
+              expenses={rows.expenses ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "sales-analysis" ? (
+            <SalesAnalysisReport
+              invoices={rows.invoices ?? []}
+              invoiceItems={rows["invoice-items"] ?? []}
+              contacts={rows.contacts ?? []}
+              inventory={rows.inventory ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "expense-analysis" ? (
+            <ExpenseAnalysisReport
+              expenses={rows.expenses ?? []}
+              accounts={rows.accounts ?? []}
+              contacts={rows.contacts ?? []}
+              currency={String(organization?.currency ?? "USD")}
+            />
+          ) : area === "inventory-movements" ? (
+            <InventoryMovementReport
+              inventory={rows.inventory ?? []}
+              movements={rows["inventory-movements"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+              organizationId={String(organization?.id ?? "")}
+              request={request}
+              refreshData={refreshData}
+            />
+          ) : area === "fixed-assets" ? (
+            <FixedAssetReport
+              assets={rows["fixed-assets"] ?? []}
+              currency={String(organization?.currency ?? "USD")}
+              organizationId={String(organization?.id ?? "")}
+              request={request}
+              refreshData={refreshData}
+            />
+          ) : area === "payroll-tax" ? (
+            <PayrollTaxReport
+              payments={rows["payroll-payments"] ?? []}
               currency={String(organization?.currency ?? "USD")}
               organizationId={String(organization?.id ?? "")}
               request={request}
@@ -3078,12 +3167,14 @@ function GeneralLedgerReport({
                     </tr>
                   </Fragment>
                 ))}
-                <tr className="ledger-total">
-                  <td colSpan={3}>Report period totals</td>
-                  <td className="table-amount">{formatCurrency(totalDebitsCents / 100, currency)}</td>
-                  <td className="table-amount">{formatCurrency(totalCreditsCents / 100, currency)}</td>
-                  <td></td>
-                </tr>
+                {accountId === "all" && (
+                  <tr className="ledger-total">
+                    <td colSpan={3}>Report period totals</td>
+                    <td className="table-amount">{formatCurrency(totalDebitsCents / 100, currency)}</td>
+                    <td className="table-amount">{formatCurrency(totalCreditsCents / 100, currency)}</td>
+                    <td></td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -3605,15 +3696,25 @@ function SubsidiaryLedgerReport({
         ) : kind === "customer" ? (
           <div className="table-scroll">
             <table>
-              <thead><tr><th>Date</th><th>Transaction</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Transaction</th>
+                  <th>Reference</th>
+                  {statement && <th>Amount</th>}
+                  {!statement && <th>Debit</th>}
+                  {!statement && <th>Credit</th>}
+                  <th>Balance</th>
+                </tr>
+              </thead>
               <tbody>
                 {customerGroups.map((group) => (
                   <Fragment key={String(group.contact.id)}>
                     <tr className="statement-section-heading">
-                      <th colSpan={6}>{String(group.contact.name ?? "Customer")} · Closing balance {formatCurrency(group.closingBalanceCents / 100, currency)}</th>
+                      <th colSpan={statement ? 5 : 6}>{String(group.contact.name ?? "Customer")} · Closing balance {formatCurrency(group.closingBalanceCents / 100, currency)}</th>
                     </tr>
                     <tr className="subsidiary-opening">
-                      <td colSpan={5}>Opening balance</td>
+                      <td colSpan={statement ? 4 : 5}>Opening balance</td>
                       <td className="table-amount">{formatCurrency(group.openingBalanceCents / 100, currency)}</td>
                     </tr>
                     {group.transactions.map((transaction) => (
@@ -3621,21 +3722,35 @@ function SubsidiaryLedgerReport({
                         <td>{new Date(`${transaction.date}T00:00:00`).toLocaleDateString()}</td>
                         <td>{transaction.transaction}</td>
                         <td>{transaction.reference || "—"}</td>
-                        <td className="table-amount">{transaction.debitCents ? formatCurrency(transaction.debitCents / 100, currency) : "—"}</td>
-                        <td className="table-amount">{transaction.creditCents ? formatCurrency(transaction.creditCents / 100, currency) : "—"}</td>
+                        {statement ? (
+                          <td className="table-amount">
+                            {transaction.debitCents
+                              ? formatCurrency(transaction.debitCents / 100, currency)
+                              : transaction.creditCents
+                                ? `-${formatCurrency(transaction.creditCents / 100, currency)}`
+                                : "—"}
+                          </td>
+                        ) : (
+                          <>
+                            <td className="table-amount">{transaction.debitCents ? formatCurrency(transaction.debitCents / 100, currency) : "—"}</td>
+                            <td className="table-amount">{transaction.creditCents ? formatCurrency(transaction.creditCents / 100, currency) : "—"}</td>
+                          </>
+                        )}
                         <td className="table-amount">{formatCurrency(transaction.balanceCents / 100, currency)}</td>
                       </tr>
                     ))}
                     <tr className="ledger-total">
-                      <td colSpan={5}>Closing balance</td>
+                      <td colSpan={statement ? 4 : 5}>Closing balance</td>
                       <td className="table-amount">{formatCurrency(group.closingBalanceCents / 100, currency)}</td>
                     </tr>
                   </Fragment>
                 ))}
-                <tr className="ledger-total">
-                  <td colSpan={5}>All customers</td>
-                  <td className="table-amount">{formatCurrency(totalCustomerBalanceCents / 100, currency)}</td>
-                </tr>
+                {contactId === "all" && (
+                  <tr className="ledger-total">
+                    <td colSpan={statement ? 4 : 5}>All customers</td>
+                    <td className="table-amount">{formatCurrency(totalCustomerBalanceCents / 100, currency)}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -3679,11 +3794,13 @@ function SubsidiaryLedgerReport({
                     </tr>
                   </Fragment>
                 ))}
-                <tr className="ledger-total">
-                  <td colSpan={3}>All vendors · period paid · ending due</td>
-                  <td className="table-amount">{formatCurrency(totalVendorExpensesCents / 100, currency)} · {formatCurrency(totalVendorPaidCents / 100, currency)} · {formatCurrency(totalVendorDueCents / 100, currency)}</td>
-                  <td></td>
-                </tr>
+                {contactId === "all" && (
+                  <tr className="ledger-total">
+                    <td colSpan={3}>All vendors · period paid · ending due</td>
+                    <td className="table-amount">{formatCurrency(totalVendorExpensesCents / 100, currency)} · {formatCurrency(totalVendorPaidCents / 100, currency)} · {formatCurrency(totalVendorDueCents / 100, currency)}</td>
+                    <td></td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

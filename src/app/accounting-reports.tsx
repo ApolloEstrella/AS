@@ -235,24 +235,83 @@ function agingBucket(dueDate: string, asOfDate: string): AgingBucket {
   return "Over 90 days";
 }
 
-function AgingReportTable({ rows, currency, emptyMessage }: { rows: AgingRow[]; currency: string; emptyMessage: string }) {
+function AgingReportTable({
+  rows,
+  currency,
+  emptyMessage,
+  columnar = false,
+}: {
+  rows: AgingRow[];
+  currency: string;
+  emptyMessage: string;
+  columnar?: boolean;
+}) {
   const totals = new Map<AgingBucket, number>(agingBuckets.map((bucket) => [bucket, 0]));
   for (const row of rows) totals.set(row.bucket, (totals.get(row.bucket) ?? 0) + row.amount);
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
   return (
     <div className="panel table-panel">
-      <div className="dashboard-grid" style={{ padding: 16 }}>
-        {agingBuckets.map((bucket) => <SummaryCard key={bucket} label={bucket} value={money(totals.get(bucket) ?? 0, currency)} />)}
-      </div>
-      {rows.length ? (
-        <div className="table-scroll"><table>
-          <thead><tr><th>Customer / vendor</th><th>Reference</th><th>Due date</th><th>Aging</th><th>Outstanding</th></tr></thead>
-          <tbody>
-            {rows.map((row) => <tr key={row.id}><td>{row.counterparty}</td><td>{row.reference}</td><td>{displayDate(row.dueDate)}</td><td>{row.bucket}</td><td className="table-amount">{money(row.amount, currency)}</td></tr>)}
-            <tr><td colSpan={4} className="table-amount">Total outstanding</td><td className="table-amount">{money(total, currency)}</td></tr>
-          </tbody>
-        </table></div>
-      ) : <EmptyReport message={emptyMessage} />}
+      {columnar ? (() => {
+        const grouped = new Map<string, { counterparty: string; amounts: Map<AgingBucket, number> }>();
+        for (const row of rows) {
+          const counterparty = grouped.get(row.counterparty) ?? {
+            counterparty: row.counterparty,
+            amounts: new Map<AgingBucket, number>(agingBuckets.map((bucket) => [bucket, 0])),
+          };
+          counterparty.amounts.set(row.bucket, (counterparty.amounts.get(row.bucket) ?? 0) + row.amount);
+          grouped.set(row.counterparty, counterparty);
+        }
+        const counterpartyRows = [...grouped.values()].sort((a, b) =>
+          a.counterparty.localeCompare(b.counterparty));
+        return counterpartyRows.length ? (
+          <div className="table-scroll"><table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                {agingBuckets.map((bucket) => <th key={bucket}>{bucket}</th>)}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {counterpartyRows.map((row) => {
+                const rowTotal = agingBuckets.reduce(
+                  (sum, bucket) => sum + (row.amounts.get(bucket) ?? 0), 0);
+                return (
+                  <tr key={row.counterparty}>
+                    <td className="table-amount">{row.counterparty}</td>
+                    {agingBuckets.map((bucket) => (
+                      <td key={bucket}>{money(row.amounts.get(bucket) ?? 0, currency)}</td>
+                    ))}
+                    <td className="table-amount">{money(rowTotal, currency)}</td>
+                  </tr>
+                );
+              })}
+              <tr>
+                <td className="table-amount">Total outstanding</td>
+                {agingBuckets.map((bucket) => (
+                  <td key={bucket} className="table-amount">{money(totals.get(bucket) ?? 0, currency)}</td>
+                ))}
+                <td className="table-amount">{money(total, currency)}</td>
+              </tr>
+            </tbody>
+          </table></div>
+        ) : <EmptyReport message={emptyMessage} />;
+      })() : (
+        <>
+          <div className="dashboard-grid" style={{ padding: 16 }}>
+            {agingBuckets.map((bucket) => <SummaryCard key={bucket} label={bucket} value={money(totals.get(bucket) ?? 0, currency)} />)}
+          </div>
+          {rows.length ? (
+            <div className="table-scroll"><table>
+              <thead><tr><th>Customer / vendor</th><th>Reference</th><th>Due date</th><th>Aging</th><th>Outstanding</th></tr></thead>
+              <tbody>
+                {rows.map((row) => <tr key={row.id}><td>{row.counterparty}</td><td>{row.reference}</td><td>{displayDate(row.dueDate)}</td><td>{row.bucket}</td><td className="table-amount">{money(row.amount, currency)}</td></tr>)}
+                <tr><td colSpan={4} className="table-amount">Total outstanding</td><td className="table-amount">{money(total, currency)}</td></tr>
+              </tbody>
+            </table></div>
+          ) : <EmptyReport message={emptyMessage} />}
+        </>
+      )}
     </div>
   );
 }
@@ -311,7 +370,7 @@ export function ReceivablesAgingReport({
           {invalid && <p className="field-error">Enter a valid date.</p>}
         </div>
       </div>
-      {!invalid && <AgingReportTable rows={rows} currency={currency} emptyMessage="No outstanding invoices as of this date." />}
+      {!invalid && <AgingReportTable rows={rows} currency={currency} emptyMessage="No outstanding invoices as of this date." columnar />}
     </>
   );
 }
@@ -359,7 +418,7 @@ export function PayablesAgingReport({
           {invalid && <p className="field-error">Enter a valid date.</p>}
         </div>
       </div>
-      {!invalid && <AgingReportTable rows={rows} currency={currency} emptyMessage="No unpaid expenses as of this date." />}
+      {!invalid && <AgingReportTable rows={rows} currency={currency} emptyMessage="No unpaid expenses as of this date." columnar />}
     </>
   );
 }

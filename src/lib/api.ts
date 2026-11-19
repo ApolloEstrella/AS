@@ -11,7 +11,7 @@ export const resources = {
   },
   inventory: {
     table: "inventory",
-    fields: ["sku", "name", "description", "unit", "quantity_on_hand", "unit_cost", "unit_price", "is_active"],
+    fields: ["sku", "name", "description", "unit", "quantity_on_hand", "unit_cost", "unit_price", "reorder_level", "is_active"],
   },
   contacts: {
     table: "contacts",
@@ -67,6 +67,18 @@ export const resources = {
   "bank-reconciliation-items": {
     table: "bank_reconciliation_items",
     fields: ["reconciliation_id", "journal_line_id", "is_cleared"],
+  },
+  "inventory-movements": {
+    table: "inventory_movements",
+    fields: ["inventory_id", "movement_type", "quantity_change", "unit_cost", "movement_date", "reference", "notes"],
+  },
+  "fixed-assets": {
+    table: "fixed_assets",
+    fields: ["name", "asset_number", "category", "acquisition_date", "cost", "salvage_value", "useful_life_months", "disposed_date", "notes"],
+  },
+  "payroll-payments": {
+    table: "payroll_payments",
+    fields: ["payee_name", "payee_type", "payment_date", "gross_amount", "income_tax_withheld", "other_tax_withheld", "reference", "notes"],
   },
   "journal-entries": {
     table: "journal_entries",

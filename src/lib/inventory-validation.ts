@@ -2,6 +2,7 @@ const inventoryLimits = {
   quantity_on_hand: { max: 999_999_999.999, decimalPlaces: 3 },
   unit_cost: { max: 999_999_999_999.99, decimalPlaces: 2 },
   unit_price: { max: 999_999_999_999.99, decimalPlaces: 2 },
+  reorder_level: { max: 999_999_999.999, decimalPlaces: 3 },
 } as const;
 
 function decimalPlaces(value: number) {

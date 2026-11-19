@@ -33,9 +33,11 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     query = query.eq("organization_id", organizationId);
   }
   if (resource === "invoice-items") {
-    const invoiceId = request.nextUrl.searchParams.get("invoiceId");
-    if (!invoiceId) return apiError("invoiceId is required.");
-    query = query.eq("invoice_id", invoiceId);
+    if (request.nextUrl.searchParams.has("invoiceId")) {
+      const invoiceId = request.nextUrl.searchParams.get("invoiceId");
+      if (!invoiceId) return apiError("invoiceId must not be empty.");
+      query = query.eq("invoice_id", invoiceId);
+    }
   } else if (resource === "invoice-payments" && request.nextUrl.searchParams.has("invoiceId")) {
     const invoiceId = request.nextUrl.searchParams.get("invoiceId");
     if (!invoiceId) return apiError("invoiceId must not be empty.");

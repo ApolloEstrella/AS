@@ -162,7 +162,7 @@ const navigation: { id: Area; label: string; icon: typeof LayoutDashboard }[] = 
   { id: "invoice-payments", label: "Invoice payments", icon: WalletCards },
   { id: "expenses", label: "Expenses", icon: WalletCards },
   { id: "journal-entries", label: "Journal entries", icon: BriefcaseBusiness },
-  { id: "inventory", label: "Inventory", icon: Package },
+  { id: "inventory", label: "Services", icon: Package },
   { id: "accounts", label: "Chart of accounts", icon: BookOpen },
   { id: "contacts", label: "Contacts", icon: UsersRound },
 ];
@@ -181,13 +181,11 @@ const reportNavigation: { id: Area; label: string; icon: typeof LayoutDashboard 
   { id: "sales-tax", label: "Sales tax report", icon: ChartNoAxesCombined },
   { id: "bank-reconciliation", label: "Bank reconciliation", icon: BookOpen },
   { id: "journal-report", label: "Journal entries report", icon: BookOpen },
-  { id: "inventory-valuation", label: "Inventory valuation", icon: Package },
   { id: "budget-vs-actual", label: "Budget vs. actual", icon: ChartNoAxesCombined },
   { id: "equity-changes", label: "Changes in equity", icon: BookOpen },
   { id: "cash-forecast", label: "Cash position & forecast", icon: ChartNoAxesCombined },
   { id: "sales-analysis", label: "Sales analysis", icon: ChartNoAxesCombined },
   { id: "expense-analysis", label: "Expense analysis", icon: ChartNoAxesCombined },
-  { id: "inventory-movements", label: "Inventory movement & reorder", icon: Package },
   { id: "fixed-assets", label: "Fixed asset schedule", icon: BookOpen },
   { id: "payroll-tax", label: "Payroll & contractor tax", icon: ChartNoAxesCombined },
 ];
@@ -391,7 +389,7 @@ const titles: Record<Area, string> = {
   invoices: "Invoices",
   "invoice-payments": "Invoice payments",
   expenses: "Expenses",
-  inventory: "Inventory",
+  inventory: "Services",
   accounts: "Chart of accounts",
   contacts: "Contacts",
   "journal-entries": "Journal entries",
@@ -1006,6 +1004,11 @@ export default function Home() {
     for (const field of fieldConfig) {
       values[field.name] = String(formData.get(field.name) ?? "").trim();
     }
+    if (area === "inventory") {
+      values.quantity_on_hand = String(editing?.quantity_on_hand ?? "0");
+      values.unit_cost = String(editing?.unit_cost ?? "0");
+      values.reorder_level = String(editing?.reorder_level ?? "0");
+    }
     if (area === "invoices") {
       values.currency = (values.currency || String(organization?.currency ?? "USD")).toUpperCase();
       values.total = (invoiceTotalCents / 100).toFixed(2);
@@ -1347,7 +1350,7 @@ export default function Home() {
     : area === "expenses"
       ? ["description", "expense_date", "account_id", "amount", "status"]
       : area === "inventory"
-        ? ["sku", "name", "unit", "quantity_on_hand", "unit_cost", "unit_price", "reorder_level", "is_active"]
+        ? ["sku", "name", "unit", "unit_price", "is_active"]
       : area === "accounts"
         ? ["code", "name", "type", "description"]
         : area === "contacts"
@@ -1484,7 +1487,7 @@ export default function Home() {
                   <div className="panel-heading"><div><h2>Quick actions</h2><p>Keep the books moving</p></div></div>
                   <button className="quick-action" onClick={() => openAddRecord("invoices")}><span className="quick-icon icon-blue"><FilePlus2 size={18} /></span><span><strong>Create an invoice</strong><small>Bill a customer</small></span><Plus size={17} /></button>
                   <button className="quick-action" onClick={() => openAddRecord("expenses")}><span className="quick-icon icon-orange"><WalletCards size={18} /></span><span><strong>Record an expense</strong><small>Track business spending</small></span><Plus size={17} /></button>
-                  <button className="quick-action" onClick={() => openAddRecord("inventory")}><span className="quick-icon icon-green"><Package size={18} /></span><span><strong>Add inventory item</strong><small>Track stock and pricing</small></span><Plus size={17} /></button>
+                  <button className="quick-action" onClick={() => openAddRecord("inventory")}><span className="quick-icon icon-green"><Package size={18} /></span><span><strong>Add service item</strong><small>Add a service to your catalog</small></span><Plus size={17} /></button>
                   <button className="quick-action" onClick={() => openAddRecord("journal-entries")}><span className="quick-icon icon-green"><BookOpen size={18} /></span><span><strong>Add journal entry</strong><small>Record an adjustment</small></span><Plus size={17} /></button>
                   <div className="tip-card"><div className="tip-spark">✳</div><div><strong>Stay audit-ready</strong><p>Attach receipts and keep notes with every expense.</p></div></div>
                 </div>
@@ -1661,7 +1664,7 @@ export default function Home() {
             <>
               <div className="page-heading list-heading">
                 <div><p className="eyebrow">YOUR BOOKS</p><h1>{titles[area]}</h1><p className="muted">{area === "accounts" ? "Organize your financial activity by account." : area === "journal-lines" ? "Individual amount-coded debit and credit lines in your ledger." : area === "inventory" ? "Manage IT service catalog items, delivery units, costs, and prices." : `Manage your ${titles[area].toLowerCase()} and keep records up to date.`}</p></div>
-                <button className="primary-button" onClick={() => openAddRecord()}><Plus size={17} /> Add {area === "inventory" ? "item" : area === "journal-entries" ? "entry" : area === "journal-lines" ? "line" : area === "accounts" ? "account" : area === "contacts" ? "contact" : area === "invoice-payments" ? "payment" : area.slice(0, -1)}</button>
+                <button className="primary-button" onClick={() => openAddRecord()}><Plus size={17} /> Add {area === "inventory" ? "service item" : area === "journal-entries" ? "entry" : area === "journal-lines" ? "line" : area === "accounts" ? "account" : area === "contacts" ? "contact" : area === "invoice-payments" ? "payment" : area.slice(0, -1)}</button>
               </div>
               <div className="panel table-panel">
                 <div className="table-toolbar"><div><strong>{filteredRows.length} records</strong><span> · Updated just now</span></div><label className="search-box"><Search size={16} /><input placeholder="Search records..." value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
@@ -1710,11 +1713,12 @@ export default function Home() {
           >
             <div className="invoice-form-page" role="dialog" aria-modal="true" aria-labelledby="invoice-form-title">
               <div className="invoice-form-panel">
-              <div className="modal-heading"><div><p className="eyebrow">{editing ? "UPDATE DETAILS" : "NEW RECORD"}</p><h2 id="invoice-form-title">{editing ? "Edit" : "Add"} {area === "inventory" ? "inventory item" : area === "journal-entries" ? "journal entry" : area === "journal-lines" ? "journal line" : titles[area].replace(/s$/, "").toLowerCase()}</h2></div><button className="icon-button" onClick={closeRecordForm} aria-label="Close"><X size={19} /></button></div>
+              <div className="modal-heading"><div><p className="eyebrow">{editing ? "UPDATE DETAILS" : "NEW RECORD"}</p><h2 id="invoice-form-title">{editing ? "Edit" : "Add"} {area === "inventory" ? "service item" : area === "journal-entries" ? "journal entry" : area === "journal-lines" ? "journal line" : titles[area].replace(/s$/, "").toLowerCase()}</h2></div><button className="icon-button" onClick={closeRecordForm} aria-label="Close"><X size={19} /></button></div>
               {area === "invoice-payments" && <p className="muted">Payments debit the selected cash or bank account, credit Accounts Receivable, and mark the invoice paid when its balance is covered.</p>}
               {area === "journal-entries" && <p className="muted">Entry details and all debit/credit lines are saved together. Debits must equal credits.</p>}
               <form noValidate onSubmit={submitRecord}>
                 <div className="form-grid">{fieldConfig.map((field) => {
+                  if (area === "inventory" && ["quantity_on_hand", "unit_cost", "reorder_level"].includes(field.name)) return null;
                   if (area === "invoices" && field.name === "total") return null;
                   if (area === "expenses" && field.name === "payment_account_id" && expenseStatus !== "paid") return null;
                   if (area === "expenses" && field.name === "payment_date" && expenseStatus !== "paid") return null;
@@ -1790,7 +1794,7 @@ export default function Home() {
                           : field.type === "journal-entry"
                             ? (rows["journal-entries"] ?? []).filter((row) => row.status !== "posted" && row.status !== "void").map((row) => ({ value: String(row.id), label: `${row.reference ?? row.entry_date ?? "Entry"} · ${row.description ?? ""}` }))
                             : (field.options ?? [])
-                              .filter((option) => !(area === "invoices" && field.name === "status" && option === "paid" && !editing))
+                              .filter((option) => !(area === "invoices" && field.name === "status" && !editing && ["draft", "paid"].includes(option)))
                               .map((option) => ({ value: option, label: field.optionLabels?.[option] ?? option.charAt(0).toUpperCase() + option.slice(1) }));
                     return <label key={field.name}>{field.label}<select {...common} onChange={(event) => {
                       if (area === "expenses" && field.name === "status") {
@@ -2066,11 +2070,12 @@ export default function Home() {
             onMouseDown={(event) => { if (event.target === event.currentTarget) closeRecordForm(); }}
           >
             <div className={area === "journal-entries" ? "record-modal journal-entry-modal" : "record-modal"}>
-              <div className="modal-heading"><div><p className="eyebrow">{editing ? "UPDATE DETAILS" : "NEW RECORD"}</p><h2>{editing ? "Edit" : "Add"} {area === "inventory" ? "inventory item" : area === "journal-entries" ? "journal entry" : area === "journal-lines" ? "journal line" : titles[area].replace(/s$/, "").toLowerCase()}</h2></div><button className="icon-button" onClick={closeRecordForm} aria-label="Close"><X size={19} /></button></div>
+              <div className="modal-heading"><div><p className="eyebrow">{editing ? "UPDATE DETAILS" : "NEW RECORD"}</p><h2>{editing ? "Edit" : "Add"} {area === "inventory" ? "service item" : area === "journal-entries" ? "journal entry" : area === "journal-lines" ? "journal line" : titles[area].replace(/s$/, "").toLowerCase()}</h2></div><button className="icon-button" onClick={closeRecordForm} aria-label="Close"><X size={19} /></button></div>
               {area === "invoice-payments" && <p className="muted">Payments debit the selected cash or bank account, credit Accounts Receivable, and mark the invoice paid when its balance is covered.</p>}
               {area === "journal-entries" && <p className="muted">Entry details and all debit/credit lines are saved together. Debits must equal credits.</p>}
               <form noValidate onSubmit={submitRecord}>
                 <div className="form-grid">{fieldConfig.map((field) => {
+                  if (area === "inventory" && ["quantity_on_hand", "unit_cost", "reorder_level"].includes(field.name)) return null;
                   if (area === "invoices" && field.name === "total") return null;
                   if (area === "expenses" && field.name === "payment_account_id" && expenseStatus !== "paid") return null;
                   if (area === "expenses" && field.name === "payment_date" && expenseStatus !== "paid") return null;
@@ -2146,7 +2151,7 @@ export default function Home() {
                           : field.type === "journal-entry"
                             ? (rows["journal-entries"] ?? []).filter((row) => row.status !== "posted" && row.status !== "void").map((row) => ({ value: String(row.id), label: `${row.reference ?? row.entry_date ?? "Entry"} · ${row.description ?? ""}` }))
                             : (field.options ?? [])
-                              .filter((option) => !(area === "invoices" && field.name === "status" && option === "paid" && !editing))
+                              .filter((option) => !(area === "invoices" && field.name === "status" && !editing && ["draft", "paid"].includes(option)))
                               .map((option) => ({ value: option, label: field.optionLabels?.[option] ?? option.charAt(0).toUpperCase() + option.slice(1) }));
                     return <label key={field.name}>{field.label}<select {...common} onChange={(event) => {
                       if (area === "expenses" && field.name === "status") {
